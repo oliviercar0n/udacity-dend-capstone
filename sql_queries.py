@@ -1,13 +1,13 @@
 create_trips_table_query = f"""
     drop table if exists trips;
     create table if not exists trips(
-        trip_id int8 not null primary key
-        , start_date timestamp not null
-        , end_date timestamp not null
+        trip_id int8 not null unique
+        , start_date timestamp
+        , end_date timestamp
         , duration_sec int
         , is_member bool
-        , start_station_id int8 not null
-        , end_station_id int8 not null
+        , start_station_id int8
+        , end_station_id int8
     )
 """
 
@@ -42,11 +42,11 @@ create_stations_table_query = f"""
 create_time_table_query = f"""
     drop table if exists time;
     create table if not exists time(
-        datetime timestamp not null primary key
-        , hour int
+        datetime timestamp not null unique
+        , year int
         , month int
         , day int
-        , day_of_week int,
+        , day_of_week int
         , hour int
     )
 """
@@ -60,23 +60,25 @@ copy_table_query = """
 """
 
 copy_time_query = """
-    select
-        datetime
+    truncate table time;
+    insert into time
+    select  
+    	dt as datetime
         , extract(year from datetime) as year
-        , extract(month from datetime) as year
-        , extract(day from datetime) as year
-        , extract(day_of_week from datetime) as year
-        , extract(hour from datetime) as year
+        , extract(month from datetime) as month
+        , extract(day from datetime) as day
+        , extract(dow from datetime) as day_of_week
+        , extract(hour from datetime) as hour
     from (
-        select distinct datetime
+        select distinct dt
         from (
-            select start_date as datetime from trips
+            select start_date as dt from trips
             union all
-            select end_date as datetime from trips
+            select end_date as dt from trips
             union all
-            select last_updated_dt as datetime from gbfs
+            select last_updated_dt as dt from gbfs
         )
-    )
+    );
 """
 
 create_queries = [
@@ -89,4 +91,34 @@ create_queries = [
 check_row_count = """
     select count(*)
     from {}
+"""
+
+check_primary_key_constraint ="""
+    select count(*)
+    from (
+        select {}, count(*)
+        from {}
+        group by 1
+        having count(*) > 2
+    )
+"""
+
+sample_query = """
+    select 
+        g.station_id
+        , s.name
+        , avg(g.num_bikes_available)
+        , sum(t.daily_trip_count)
+    from gbfs g
+    inner join stations s
+        on g.station_id = s.station_id
+    inner join (
+      select start_station_id, count(*) as daily_trip_count
+      from trips
+      where cast(start_date as date) = '2021-04-20'
+      group by 1
+    ) t on t.start_station_id = g.station_id 
+    where cast(g.last_updated_dt as date) = '2021-04-20'
+    group by 1,2
+    limit 5;
 """
