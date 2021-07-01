@@ -104,14 +104,18 @@ check_primary_key_constraint ="""
 """
 
 sample_query = """
-    select 
-        g.station_id
+    select
+        cast(g.last_updated_dt as date) date
+        , max(tm.day_of_week) day_of_week
+        , g.station_id
         , s.name
         , avg(g.num_bikes_available)
-        , sum(t.daily_trip_count)
+        , max(t.daily_trip_count)
     from gbfs g
     inner join stations s
         on g.station_id = s.station_id
+    inner join time tm
+        on tm.datetime = g.last_updated_dt
     inner join (
       select start_station_id, count(*) as daily_trip_count
       from trips
@@ -119,6 +123,6 @@ sample_query = """
       group by 1
     ) t on t.start_station_id = g.station_id 
     where cast(g.last_updated_dt as date) = '2021-04-20'
-    group by 1,2
+    group by 1,3,4
     limit 5;
 """
